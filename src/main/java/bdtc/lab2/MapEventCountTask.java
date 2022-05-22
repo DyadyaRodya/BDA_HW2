@@ -15,14 +15,14 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 public class MapEventCountTask extends ComputeTaskAdapter<MapComputeTaskArg, Integer>{
-
+    // аргумент для прокидывания объекта и метода для записи результатов в кеш
     private MapComputeTaskArg updateStatArg;
 
     @NotNull @Override public Map<? extends ComputeJob, ClusterNode> map(List<ClusterNode> nodes, MapComputeTaskArg arg) {
         Map<ComputeJob, ClusterNode> map = new HashMap<>();
 
         Iterator<ClusterNode> it = nodes.iterator();
-
+        // аргумент для прокидывания кеша
         this.updateStatArg = new MapComputeTaskArg(arg.getMethod(), arg.getObject());
 
         for (final NewsInteractionEntity newsEvent : arg.getArg()) {
@@ -35,7 +35,7 @@ public class MapEventCountTask extends ComputeTaskAdapter<MapComputeTaskArg, Int
             map.put(new ComputeJobAdapter() {
                 @Nullable @Override public Object execute() {
 
-                    // Return number of letters in the word.
+                    // Return stat class with times=1.
                     return new NewsEventStat(newsEvent.getNews_id(),newsEvent.getEvent_type());
                 }
             }, node);
@@ -47,6 +47,7 @@ public class MapEventCountTask extends ComputeTaskAdapter<MapComputeTaskArg, Int
     @Override @Nullable public Integer reduce(List<ComputeJobResult> results) {
         int sumStat = 0;
         List<NewsEventStatEntity> newsEventStatsList = new ArrayList<>();
+        // группировка данных статистики по news_id и event_type
         Map<Integer, Map<Integer, List<NewsEventStat>>> groupedByNewsAndEvent = results.stream()
                 .map(ComputeJobResult::<NewsEventStat>getData)
                 .collect(Collectors
@@ -55,6 +56,7 @@ public class MapEventCountTask extends ComputeTaskAdapter<MapComputeTaskArg, Int
         for (Map<Integer, List<NewsEventStat>> groupedByEvent : groupedByNewsAndEvent.values()){
             for (List<NewsEventStat> statList: groupedByEvent.values()){
                 NewsEventStat newsEventStat = statList.get(0);
+                // создание Etity с подсчитанным полем times
                 NewsEventStatEntity newsEventStatToSave = new NewsEventStatEntity(newsEventStat.getNews_id(),
                         newsEventStat.getEvent_type(),
                         statList.size());
@@ -62,7 +64,7 @@ public class MapEventCountTask extends ComputeTaskAdapter<MapComputeTaskArg, Int
                 sumStat += statList.size();
             }
         }
-
+        // прокидываем список Entity для сохранения в кеш
         try {
             updateStatArg.invoke(newsEventStatsList);
         } catch (InvocationTargetException e) {
