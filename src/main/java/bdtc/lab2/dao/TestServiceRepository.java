@@ -17,7 +17,9 @@ import java.util.stream.StreamSupport;
 
 public class TestServiceRepository {
     private Ignite ignite;
+    // кеш для данных о взаимодействиях (наполняется запросами от пользователя)
     CacheConfiguration<UUID, NewsInteractionEntity> newsInteractionCacheConfiguration;
+    // кеш для статистики по news_id и event_type распределению
     CacheConfiguration<UUID, NewsEventStatEntity> newsEventStatCacheConfiguration;
 
 
@@ -28,20 +30,24 @@ public class TestServiceRepository {
         this.newsEventStatCacheConfiguration = newsEventStatCacheConfiguration;
     }
 
+    // Очищаем старую статистику и сохраняем новую
     public void updateStats(List<NewsEventStatEntity> newsEventStatEntitiess){
         ignite.getOrCreateCache(newsEventStatCacheConfiguration).clear();
         for (NewsEventStatEntity newsEventStatEntity: newsEventStatEntitiess)
             ignite.getOrCreateCache(newsEventStatCacheConfiguration).put(UUID.randomUUID(), newsEventStatEntity);
     }
 
+    // добавление нового события
     public void save(NewsInteractionEntity newsInteractionEntity){
         ignite.getOrCreateCache(newsInteractionCacheConfiguration).put(newsInteractionEntity.getId(), newsInteractionEntity);
     }
 
+    // поиск события по id
     public NewsInteractionEntity get(UUID id){
         return ignite.getOrCreateCache(newsInteractionCacheConfiguration).get(id);
     }
 
+    // просмотр сохраненной статистики
     public List<NewsEventStatEntity> getStats(){
         Iterable<Cache.Entry<UUID, NewsEventStatEntity>> iterable = () -> ignite.getOrCreateCache(newsEventStatCacheConfiguration).iterator();
 
@@ -53,6 +59,7 @@ public class TestServiceRepository {
         return newsEventStatEntities;
     }
 
+    // получение всех событий
     public List<NewsInteractionEntity> getAll(){
         Iterable<Cache.Entry<UUID, NewsInteractionEntity>> iterable = () -> ignite.getOrCreateCache(newsInteractionCacheConfiguration).iterator();
 
@@ -64,23 +71,28 @@ public class TestServiceRepository {
         return newsInteractionEntities;
     }
 
+    // подсчет новой статистики
     public TotalStatsEntity countStats(){
         Iterable<Cache.Entry<UUID, NewsInteractionEntity>> iterable = () -> ignite.getOrCreateCache(newsInteractionCacheConfiguration).iterator();
 
+        //собираем все события
         List<NewsInteractionEntity> newsInteractions = StreamSupport
                 .stream(iterable.spliterator(), false)
                 .map(Cache.Entry::getValue)
                 .collect(Collectors.toList());
 
+        // параметр для прокидывания результата reduce
         Class[] parameterTypes = new Class[1];
         parameterTypes[0] = List.class;
 
         int res = 0;
         System.out.println("=========Starting update stats task.=========\n");
         try {
+            // класс аргумента для прокидывания кеша с методом обновления статистики
             MapComputeTaskArg arg = new MapComputeTaskArg(newsInteractions,
                     TestServiceRepository.class.getMethod("updateStats", parameterTypes),
                     this);
+            // запуск таски
             res = ignite.compute().
                     execute(MapEventCountTask.class, arg);
         } catch (NoSuchMethodException e) {

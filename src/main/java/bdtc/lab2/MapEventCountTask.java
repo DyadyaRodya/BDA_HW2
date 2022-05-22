@@ -15,16 +15,16 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 public class MapEventCountTask extends ComputeTaskAdapter<MapComputeTaskArg, Integer>{
-
+    // аргумент для прокидывания объекта и метода для записи результатов в кеш
     private MapComputeTaskArg updateStatArg;
 
     @NotNull @Override public Map<? extends ComputeJob, ClusterNode> map(List<ClusterNode> nodes, MapComputeTaskArg arg) {
         Map<ComputeJob, ClusterNode> map = new HashMap<>();
 
         Iterator<ClusterNode> it = nodes.iterator();
-
+        // аргумент для прокидывания кеша
         this.updateStatArg = new MapComputeTaskArg(arg.getMethod(), arg.getObject());
-
+        // группировка данных статистики по news_id и event_type
         Map<Integer, Map<Integer, List<NewsInteractionEntity>>> groupedByNewsAndEvent = arg.getArg().stream()
                 .collect(Collectors
                         .groupingBy(NewsInteractionEntity::getNews_id,Collectors.groupingBy(NewsInteractionEntity::getEvent_type)));
@@ -42,6 +42,7 @@ public class MapEventCountTask extends ComputeTaskAdapter<MapComputeTaskArg, Int
                     @Nullable @Override public Object execute() {
 
                         NewsInteractionEntity newsInteraction = statList.get(0);
+                        // создание NewsEventStat с подсчитанным полем times
                         NewsEventStat newsEventStatToSave = new NewsEventStat(newsInteraction.getNews_id(),
                                 newsInteraction.getEvent_type(),
                                 statList.size());
@@ -52,7 +53,6 @@ public class MapEventCountTask extends ComputeTaskAdapter<MapComputeTaskArg, Int
 
             }
         }
-
 
         return map;
     }
@@ -73,7 +73,7 @@ public class MapEventCountTask extends ComputeTaskAdapter<MapComputeTaskArg, Int
             newsEventStatsList.add(newsEventStatToSave);
             sumStat += newsEventStat.getTimes();
         }
-
+        // прокидываем список Entity для сохранения в кеш
         try {
             updateStatArg.invoke(newsEventStatsList);
         } catch (InvocationTargetException e) {
