@@ -24,6 +24,9 @@
 2. Собрать контейнер `docker build .`
 3. Запустить полученный образ `docker run -d -p 8080:8080 <IMAGE_ID>` (или без `-d`)
 
+Альтернативный способ - использовать образ с docker hub
+`docker run -d -p 8080:8080  dyadyarodya/bda_hw2:latest`
+
 ## Скриншот успешно выполненных тестов
 ![изображение](https://user-images.githubusercontent.com/55759699/169707769-c65a4b25-85c5-47f9-a709-56789c11d5dc.png)
 
