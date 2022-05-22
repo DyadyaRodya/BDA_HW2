@@ -25,21 +25,34 @@ public class MapEventCountTask extends ComputeTaskAdapter<MapComputeTaskArg, Int
 
         this.updateStatArg = new MapComputeTaskArg(arg.getMethod(), arg.getObject());
 
-        for (final NewsInteractionEntity newsEvent : arg.getArg()) {
-            // If we used all nodes, restart the iterator.
-            if (!it.hasNext())
-                it = nodes.iterator();
+        Map<Integer, Map<Integer, List<NewsInteractionEntity>>> groupedByNewsAndEvent = arg.getArg().stream()
+                .collect(Collectors
+                        .groupingBy(NewsInteractionEntity::getNews_id,Collectors.groupingBy(NewsInteractionEntity::getEvent_type)));
 
-            ClusterNode node = it.next();
+        for (Map<Integer, List<NewsInteractionEntity>> groupedByEvent : groupedByNewsAndEvent.values()){
+            for (List<NewsInteractionEntity> statList: groupedByEvent.values()){
+                // If we used all nodes, restart the iterator.
+                if (!it.hasNext())
+                    it = nodes.iterator();
 
-            map.put(new ComputeJobAdapter() {
-                @Nullable @Override public Object execute() {
+                ClusterNode node = it.next();
 
-                    // Return number of letters in the word.
-                    return new NewsEventStat(newsEvent.getNews_id(),newsEvent.getEvent_type());
-                }
-            }, node);
+
+                map.put(new ComputeJobAdapter() {
+                    @Nullable @Override public Object execute() {
+
+                        NewsInteractionEntity newsInteraction = statList.get(0);
+                        NewsEventStat newsEventStatToSave = new NewsEventStat(newsInteraction.getNews_id(),
+                                newsInteraction.getEvent_type(),
+                                statList.size());
+
+                        return newsEventStatToSave;
+                    }
+                }, node);
+
+            }
         }
+
 
         return map;
     }
@@ -52,15 +65,13 @@ public class MapEventCountTask extends ComputeTaskAdapter<MapComputeTaskArg, Int
                 .collect(Collectors
                         .groupingBy(NewsEventStat::getNews_id,Collectors.groupingBy(NewsEventStat::getEvent_type)));
 
-        for (Map<Integer, List<NewsEventStat>> groupedByEvent : groupedByNewsAndEvent.values()){
-            for (List<NewsEventStat> statList: groupedByEvent.values()){
-                NewsEventStat newsEventStat = statList.get(0);
-                NewsEventStatEntity newsEventStatToSave = new NewsEventStatEntity(newsEventStat.getNews_id(),
-                        newsEventStat.getEvent_type(),
-                        statList.size());
-                newsEventStatsList.add(newsEventStatToSave);
-                sumStat += statList.size();
-            }
+        for (ComputeJobResult result : results){
+            NewsEventStat newsEventStat = result.<NewsEventStat>getData();
+            NewsEventStatEntity newsEventStatToSave = new NewsEventStatEntity(newsEventStat.getNews_id(),
+                    newsEventStat.getEvent_type(),
+                    newsEventStat.getTimes());
+            newsEventStatsList.add(newsEventStatToSave);
+            sumStat += newsEventStat.getTimes();
         }
 
         try {
