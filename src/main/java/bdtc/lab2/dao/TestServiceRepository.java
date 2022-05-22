@@ -76,6 +76,7 @@ public class TestServiceRepository {
         parameterTypes[0] = List.class;
 
         int res = 0;
+        System.out.println("=========Starting update stats task.=========\n");
         try {
             MapComputeTaskArg arg = new MapComputeTaskArg(newsInteractions,
                     TestServiceRepository.class.getMethod("updateStats", parameterTypes),
@@ -84,10 +85,11 @@ public class TestServiceRepository {
                     execute(MapEventCountTask.class, arg);
         } catch (NoSuchMethodException e) {
             e.printStackTrace();
+            res = -1;
         }
-
+        System.out.println("=========Update stats task finished. Total result:=========\n");
         TotalStatsEntity totalStatsEntity = new TotalStatsEntity(res);
-
+        System.out.println(totalStatsEntity);
         return totalStatsEntity;
     }
 }
